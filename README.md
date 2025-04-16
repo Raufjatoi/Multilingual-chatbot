@@ -63,7 +63,7 @@ yarn dev
 ## 💻 Usage
 1. Select your preferred language from the dropdown
 2. Type your message or use voice input
-3. Upload files for  ( its based on limits so hard to use )
+3. Upload files for  ( its based on limits, so hard to use )
 4. Use the search feature for web queries ( disabled for now )
 5. Enable text-to-speech for spoken responses
 

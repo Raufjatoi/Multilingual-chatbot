@@ -8,6 +8,7 @@ import { generateChatResponse, processFileContent, searchWeb } from "@/services/
 import { VoiceService } from "@/services/voice-service";
 import { BubbleScene } from "@/components/SimpleChatBubbles";
 import { Loader2 } from "lucide-react";
+import { readPDFContent, isPDF } from "@/services/pdf-service";
 
 const Index = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -81,9 +82,38 @@ const Index = () => {
   const handleFileUpload = async (files: FileList) => {
     try {
       const newFiles: FileInfo[] = [];
+      const maxFileSize = 10 * 1024 * 1024; // Increased to 10MB for PDFs
+      const allowedTypes = [
+        'text/plain',
+        'text/markdown',
+        'text/csv',
+        'application/json',
+        'text/javascript',
+        'text/typescript',
+        'text/html',
+        'text/css',
+        'application/pdf'
+      ];
       
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        
+        // Check file size
+        if (file.size > maxFileSize) {
+          throw new Error(`File ${file.name} is too large. Maximum size is 10MB.`);
+        }
+        
+        // Check file type
+        const isAllowedType = allowedTypes.includes(file.type) || 
+                             allowedTypes.some(type => file.name.toLowerCase().endsWith(type.split('/')[1])) ||
+                             isPDF(file);
+                             
+        if (!isAllowedType) {
+          throw new Error(`File type not supported for ${file.name}`);
+        }
+        
+        // Show loading state
+        setIsLoading(true);
         
         // Read file content
         const fileContent = await readFileContent(file);
@@ -103,7 +133,7 @@ const Index = () => {
       const fileNames = newFiles.map(file => file.name).join(", ");
       const systemMessage: ChatMessage = { 
         role: "system", 
-        content: `Files uploaded: ${fileNames}. You can ask questions about these files.` 
+        content: `Files uploaded successfully: ${fileNames}. You can now ask questions about these files.` 
       };
       setMessages((prev) => [...prev, systemMessage]);
       
@@ -113,47 +143,42 @@ const Index = () => {
       // Add error message
       const errorMessage: ChatMessage = { 
         role: "assistant", 
-        content: "I'm sorry, I encountered an error uploading your files. Please try again." 
+        content: `Error uploading files: ${error.message}` 
       };
       setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Read file content
-  const readFileContent = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      
-      reader.onload = (event) => {
-        if (event.target) {
-          resolve(event.target.result as string);
-        } else {
-          reject(new Error("Failed to read file"));
-        }
-      };
-      
-      reader.onerror = () => {
-        reject(new Error("Failed to read file"));
-      };
-      
-      // Text files
-      if (file.type.includes("text") || 
-          file.type.includes("application/json") ||
-          file.type.includes("application/xml") ||
-          file.name.endsWith(".csv") ||
-          file.name.endsWith(".md") ||
-          file.name.endsWith(".js") ||
-          file.name.endsWith(".ts") ||
-          file.name.endsWith(".html") ||
-          file.name.endsWith(".css")) {
-        reader.readAsText(file);
-      } 
-      // PDF files would need a PDF.js integration
-      else {
-        // For unsupported file types, just read as text
-        reader.readAsText(file);
+  const readFileContent = async (file: File): Promise<string> => {
+    try {
+      if (isPDF(file)) {
+        return await readPDFContent(file);
+      } else {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          
+          reader.onload = (event) => {
+            if (event.target?.result) {
+              resolve(event.target.result as string);
+            } else {
+              reject(new Error("Failed to read file"));
+            }
+          };
+          
+          reader.onerror = () => {
+            reject(new Error(`Failed to read file: ${file.name}`));
+          };
+          
+          reader.readAsText(file);
+        });
       }
-    });
+    } catch (error) {
+      console.error("Error reading file:", error);
+      throw new Error(`Failed to read file: ${file.name}`);
+    }
   };
 
   // Handle voice input
@@ -215,23 +240,17 @@ const Index = () => {
 
   // Handle web search
   const handleWebSearch = async (query: string) => {
-    // Add user message to the chat
     const userMessage: ChatMessage = { 
       role: "user", 
-      content: `Search the web for: ${query}` 
+      content: `🔍 Search: ${query}` 
     };
     setMessages((prev) => [...prev, userMessage]);
     
     setIsLoading(true);
     
     try {
-      // Determine language
-      const currentLang = "en"; // Default to English for search
+      const response = await searchWeb(query);
       
-      // Search the web
-      const response = await searchWeb(query, currentLang);
-      
-      // Add search results to the chat
       const searchMessage: ChatMessage = { 
         role: "assistant", 
         content: response
@@ -239,12 +258,11 @@ const Index = () => {
       setMessages((prev) => [...prev, searchMessage]);
       
     } catch (error) {
-      console.error("Web search error:", error);
+      console.error("Search error:", error);
       
-      // Add error message
       const errorMessage: ChatMessage = { 
         role: "assistant", 
-        content: "I'm sorry, I encountered an error searching the web. Please try again." 
+        content: "I couldn't complete the search. Please try again." 
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {

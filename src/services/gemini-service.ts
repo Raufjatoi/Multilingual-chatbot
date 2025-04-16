@@ -111,51 +111,49 @@ export const processFileContent = async (
   query: string, 
   language: string = "en"
 ): Promise<string> => {
-  const messages: ChatMessage[] = [
-    { 
-      role: "system", 
-      content: `The following is content from uploaded files. Please analyze it and answer the user's question in ${language} language.` 
-    },
-    { 
-      role: "user", 
-      content: `File content: ${fileContent}\n\nMy question: ${query}` 
-    }
-  ];
-  
-  return sendMessageToGemini(messages);
+  try {
+    const messages: ChatMessage[] = [
+      { 
+        role: "system", 
+        content: `You are analyzing the following file content. Please provide a detailed response in ${language} language.` 
+      },
+      { 
+        role: "user", 
+        content: `Here is the file content:\n\n${fileContent}\n\nUser's question: ${query}` 
+      }
+    ];
+    
+    return await sendMessageToGemini(messages);
+  } catch (error) {
+    console.error("Error processing file content:", error);
+    throw new Error("Failed to process file content");
+  }
 };
 
 // Updated web search function to return a string response
 export const searchWeb = async (query: string, language: string = "en"): Promise<string> => {
-  // Log the search query
-  console.log(`Searching the web for: ${query}`);
-  
-  // Simulate web search results
-  const results: WebSearchResult[] = [
-    {
-      title: "Example Search Result 1",
-      link: "https://example.com/result1",
-      snippet: "This is an example search result snippet that would match the query."
-    },
-    {
-      title: "Example Search Result 2",
-      link: "https://example.com/result2",
-      snippet: "Another example search result with information related to the query."
-    }
-  ];
-  
-  // Create a message to process the search results
-  const messages: ChatMessage[] = [
-    { 
-      role: "system", 
-      content: `The following are web search results for the query: "${query}". Please summarize these results in ${language} language.` 
-    },
-    { 
-      role: "user", 
-      content: formatSearchResults(results)
-    }
-  ];
-  
-  // Send the request to Gemini
-  return sendMessageToGemini(messages, [], results);
+  try {
+    const messages: ChatMessage[] = [
+      { 
+        role: "system", 
+        content: `You are a search engine assistant. For the following search query, 
+                 provide relevant, factual information in ${language} language. 
+                 Format your response as if showing search results, including:
+                 - A brief summary of the topic
+                 - Key facts and details
+                 - Any relevant dates or statistics
+                 - Common questions people ask about this topic
+                 Keep the response informative but concise.` 
+      },
+      { 
+        role: "user", 
+        content: `Search query: ${query}`
+      }
+    ];
+    
+    return await sendMessageToGemini(messages);
+  } catch (error) {
+    console.error("Search error:", error);
+    throw error;
+  }
 };

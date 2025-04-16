@@ -58,13 +58,18 @@ export const ChatInterface = ({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      if (e.ctrlKey || e.metaKey) {
+        handleSearch(); // Search on Ctrl/Cmd + Enter
+      } else {
+        handleSendMessage(); // Normal send on Enter
+      }
     }
   };
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (inputMessage.trim()) {
-      onWebSearch(inputMessage);
+      await onWebSearch(inputMessage);
+      setInputMessage(""); // Clear input after search
     }
   };
 
@@ -166,10 +171,22 @@ export const ChatInterface = ({
           className="min-h-[60px] pr-32"
         />
         <div className="absolute right-2 bottom-2 flex space-x-1">
-          <Button variant="ghost" size="icon" onClick={onVoiceInput} title="Voice Input">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={onVoiceInput} 
+            title="Voice Input"
+            disabled={isLoading}
+          >
             <Mic className="h-5 w-5" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={handleFileClick} title="Upload File">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleFileClick} 
+            title="Upload File"
+            disabled={isLoading}
+          >
             <Upload className="h-5 w-5" />
             <input 
               type="file" 
@@ -179,7 +196,13 @@ export const ChatInterface = ({
               multiple 
             />
           </Button>
-          <Button variant="ghost" size="icon" onClick={handleSearch} title="Search Web">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleSearch} 
+            title="Search Web"
+            disabled={isLoading || !inputMessage.trim()}
+          >
             <Search className="h-5 w-5" />
           </Button>
           <Button onClick={handleSendMessage} disabled={isLoading}>

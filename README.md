@@ -67,7 +67,7 @@ yarn dev
 4. Use the search feature for web queries ( disabled for now )
 5. Enable text-to-speech for spoken responses
 
-# Python Folder 📁 
+## Python Folder 📁 
 The Python folder was just for researching and trying out the models and features on Streamlit before working on React-Vite, so yeah, you can find some code there too if you're interested ;)
 
 ## 🛠️ Built With

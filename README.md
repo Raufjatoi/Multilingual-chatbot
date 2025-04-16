@@ -83,4 +83,5 @@ The Python folder was just for researching and trying out the models and feature
 Contributions, issues, and feature requests are welcome!
 
 ## 📧 Contact
-Abdul Rauf Jatoi - [Gmail](raufpokemon00@gmail.com)
+[Abdul Rauf Jatoi](mailto:raufpokemon00@gmail.com)
+

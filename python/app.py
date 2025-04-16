@@ -3,6 +3,8 @@ import requests
 import os
 from dotenv import load_dotenv
 from chat_history import store_local_chat, load_local_history
+import PyPDF2
+from io import BytesIO
 
 load_dotenv()
 
@@ -35,12 +37,26 @@ with col1:
 with col2:
     st.session_state.api_choice = st.selectbox("Choose API", ["Gemini", "Groq"])
 
+def read_pdf(file):
+    pdf_reader = PyPDF2.PdfReader(BytesIO(file.read()))
+    text = ""
+    for page in pdf_reader.pages:
+        text += page.extract_text() + "\n"
+    return text
+
 # File upload
-uploaded_file = st.file_uploader("Upload a text file (TXT only)", type=["txt"])
+uploaded_file = st.file_uploader("Upload a text file (TXT or PDF)", type=["txt", "pdf"])
 file_text = ""
 if uploaded_file is not None:
-    file_text = uploaded_file.read().decode("utf-8")
-    st.success("File uploaded and processed.")
+    try:
+        if uploaded_file.type == "application/pdf":
+            file_text = read_pdf(uploaded_file)
+        else:  # txt file
+            file_text = uploaded_file.read().decode("utf-8")
+        st.success("File uploaded and processed successfully.")
+    except Exception as e:
+        st.error(f"Error processing file: {str(e)}")
+        file_text = ""
 
 # Show local history
 if st.button("📜 Show Previous Conversations"):
@@ -81,7 +97,7 @@ if user_input:
             "Content-Type": "application/json"
         }
         data = {
-            "model": "mistral-saba-24b",
+            "model": "compound-beta",
             "messages": [
                 {"role": "user", "content": prompt_text}
             ]

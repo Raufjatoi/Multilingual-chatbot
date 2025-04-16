@@ -80,11 +80,25 @@ export const generateChatResponse = async (
   language: string = "en"
 ): Promise<string> => {
   // Add language context to the messages
+  const languageMap: Record<string, string> = {
+    'en': 'English',
+    'tr': 'Turkish',
+    'ur': 'Urdu',
+    'hi': 'Hindi',
+    'zh': 'Chinese',
+    'es': 'Spanish',
+    'fr': 'French',
+    'de': 'German',
+    'ar': 'Arabic'
+  };
+
+  const languageName = languageMap[language] || 'English';
+  
   const messagesWithLang: ChatMessage[] = [
     ...messages,
     { 
       role: "system", 
-      content: `Please respond in ${language} language.` 
+      content: `Please respond in ${languageName} language. If the response contains any text, ensure it is properly formatted in ${languageName}.` 
     }
   ];
   

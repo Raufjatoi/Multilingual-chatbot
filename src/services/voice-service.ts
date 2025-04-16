@@ -94,6 +94,7 @@ export const VoiceService = {
         'fr': 'fr-FR',
         'de': 'de-DE',
         'ar': 'ar-SA',
+        'tr': 'tr-TR', // Added Turkish
       };
       
       // Set the language for the utterance

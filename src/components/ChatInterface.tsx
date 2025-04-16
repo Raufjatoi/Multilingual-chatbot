@@ -27,6 +27,7 @@ const languages = [
   { value: "fr", label: "French" },
   { value: "de", label: "German" },
   { value: "ar", label: "Arabic" },
+  { value: "tr", label: "Turkish" },
 ];
 
 export const ChatInterface = ({

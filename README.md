@@ -32,7 +32,7 @@ A modern chatbot that can communicate in multiple languages, powered by Google's
 ### Prerequisites
 - Node.js (v16 or higher)
 - npm or yarn
-- Google Gemini API key
+- GROQ API key
 
 ### Installation
 1. Clone the repository:
@@ -50,7 +50,7 @@ yarn install
 
 3. Create a `.env` file in the root directory:
 ```env
-VITE_API_KEY=your_gemini_api_key
+VITE_GROQ_API_KEY=your_groq_api_key
 ```
 
 4. Start the development server:
@@ -63,7 +63,7 @@ yarn dev
 ## 💻 Usage
 1. Select your preferred language from the dropdown
 2. Type your message or use voice input
-3. Upload files for  ( its based on limits, so hard to use )
+3. Upload files for 
 4. Use the search feature for web queries ( disabled for now )
 5. Enable text-to-speech for spoken responses
 
@@ -75,9 +75,7 @@ The Python folder was just for researching and trying out the models and feature
 - Vite
 - Tailwind
 - Shadcn/ui
-- Google Gemini AI
-- PDF.js
-
+- GROQ AI
 
 ## 🤝 Contributing
 Contributions, issues, and feature requests are welcome!

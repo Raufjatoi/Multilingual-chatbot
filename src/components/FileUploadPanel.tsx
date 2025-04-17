@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { isPDF } from "@/services/pdf-service";
+// import { isPDF } from "@/services/pdf-service";
 
 interface FileUploadPanelProps {
   files: FileInfo[];
@@ -21,7 +21,7 @@ export const FileUploadPanel = ({ files, onRemoveFile }: FileUploadPanelProps) =
   const [previewFile, setPreviewFile] = useState<FileInfo | null>(null);
 
   const getFileIcon = (file: FileInfo) => {
-    if (isPDF(new File([], file.name, { type: file.type }))) {
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
       return <FileType className="h-4 w-4 mr-2 text-red-500" />;
     }
     return <FileText className="h-4 w-4 mr-2 text-muted-foreground" />;

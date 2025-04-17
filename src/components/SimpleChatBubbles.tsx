@@ -40,11 +40,13 @@ export const BubbleScene = ({ canvasRef }: BubbleSceneProps) => {
     const bubbleCount = 30;
     
     for (let i = 0; i < bubbleCount; i++) {
+      // Changed color to use red hues (0-30 degrees in HSL)
       bubbles.push({
         x: Math.random() * window.innerWidth,
         y: Math.random() * window.innerHeight,
         radius: 5 + Math.random() * 20,
-        color: `hsla(${240 + Math.random() * 60}, 70%, 70%, ${0.1 + Math.random() * 0.2})`,
+        // Changed from purple (240+) to red (0-30) hues
+        color: `hsla(${Math.random() * 30}, 70%, 70%, ${0.1 + Math.random() * 0.2})`,
         speedX: Math.random() * 0.5 - 0.25,
         speedY: Math.random() * 0.5 - 0.25
       });

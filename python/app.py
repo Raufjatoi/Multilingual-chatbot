@@ -9,7 +9,6 @@ from io import BytesIO
 load_dotenv()
 
 # ENV Variables
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 st.set_page_config(page_title="Multi-Lingual Chatbot", layout="wide", page_icon="🤖")
@@ -28,14 +27,14 @@ st.title("🌍 Multi-Lingual Chatbot")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "api_choice" not in st.session_state:
-    st.session_state.api_choice = "Gemini"
+    st.session_state.api_choice = "Groq"
 
 # Language and API choice
 col1, col2 = st.columns(2)
 with col1:
     selected_lang = st.selectbox("Select Language", ["English", "Spanish", "French", "German", "Chinese", "Urdu"])
 with col2:
-    st.session_state.api_choice = st.selectbox("Choose API", ["Gemini", "Groq"])
+    st.session_state.api_choice = st.selectbox("Choose API", ["Groq"])
 
 def read_pdf(file):
     pdf_reader = PyPDF2.PdfReader(BytesIO(file.read()))
@@ -84,13 +83,7 @@ if user_input:
     headers, url, data = {}, "", {}
 
     # Check which API to use
-    if st.session_state.api_choice == "Gemini":
-        url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-lite:generateContent?key=" + GEMINI_API_KEY
-        data = {
-            "contents": [{"parts": [{"text": prompt_text}]}]
-        }
-        headers = {"Content-Type": "application/json"}
-    else:
+    if st.session_state.api_choice == "Groq":
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -107,11 +100,7 @@ if user_input:
 
     # Handle the response from the API
     if response.status_code == 200:
-        if st.session_state.api_choice == "Gemini":
-            bot_reply = response.json()['candidates'][0]['content']['parts'][0]['text']
-        else:
-            bot_reply = response.json()['choices'][0]['message']['content']
-
+        bot_reply = response.json()['choices'][0]['message']['content']
         st.session_state.messages.append({"role": "assistant", "content": bot_reply})
         with st.chat_message("assistant"):
             st.markdown(bot_reply)

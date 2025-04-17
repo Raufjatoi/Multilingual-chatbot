@@ -4,11 +4,18 @@ import { ChatInterface } from "@/components/ChatInterface";
 import { FileUploadPanel } from "@/components/FileUploadPanel";
 import { Footer } from "@/components/Footer";
 import { ChatMessage, FileInfo } from "@/types/types";
-import { generateChatResponse, processFileContent, searchWeb } from "@/services/gemini-service";
+import { 
+  generateChatResponse, 
+  processFileContent, 
+  searchWeb,
+  addFilesToContext,
+  clearFileContext,
+  sendMessageToGroq
+} from "@/services/groq-service";
 import { VoiceService } from "@/services/voice-service";
 import { BubbleScene } from "@/components/SimpleChatBubbles";
 import { Loader2 } from "lucide-react";
-import { readPDFContent, isPDF } from "@/services/pdf-service";
+import * as mammoth from 'mammoth';
 
 const Index = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -34,7 +41,6 @@ const Index = () => {
 
   // Handle sending a message
   const handleSendMessage = async (message: string, language: string) => {
-    // Add user message to the chat
     const userMessage: ChatMessage = { role: "user", content: message };
     setMessages((prev) => [...prev, userMessage]);
     
@@ -43,31 +49,28 @@ const Index = () => {
     try {
       let response: string;
       
-      // Check if the message is related to an uploaded file
       if (uploadedFiles.length > 0 && 
           (message.toLowerCase().includes("file") || 
            message.toLowerCase().includes("document") ||
            message.toLowerCase().includes("uploaded"))) {
         
-        // Combine all file contents
-        const combinedContent = uploadedFiles.map(file => 
-          `File: ${file.name}\n${file.content}\n\n`
-        ).join("");
+        // Create messages array for context
+        const contextMessages = [
+          ...messages,
+          userMessage
+        ];
         
-        response = await processFileContent(combinedContent, message, language);
+        response = await sendMessageToGroq(contextMessages, uploadedFiles);
       } else {
-        // Regular chat response
         response = await generateChatResponse([userMessage], language);
       }
       
-      // Add assistant response to the chat
       const assistantMessage: ChatMessage = { role: "assistant", content: response };
       setMessages((prev) => [...prev, assistantMessage]);
       
     } catch (error) {
       console.error("Error sending message:", error);
       
-      // Add error message
       const errorMessage: ChatMessage = { 
         role: "assistant", 
         content: "I'm sorry, I encountered an error. Please try again." 
@@ -82,7 +85,7 @@ const Index = () => {
   const handleFileUpload = async (files: FileList) => {
     try {
       const newFiles: FileInfo[] = [];
-      const maxFileSize = 10 * 1024 * 1024; // Increased to 10MB for PDFs
+      const maxFileSize = 10 * 1024 * 1024; // 10MB limit
       const allowedTypes = [
         'text/plain',
         'text/markdown',
@@ -92,44 +95,47 @@ const Index = () => {
         'text/typescript',
         'text/html',
         'text/css',
-        'application/pdf'
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/msword'
       ];
       
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         
-        // Check file size
         if (file.size > maxFileSize) {
           throw new Error(`File ${file.name} is too large. Maximum size is 10MB.`);
         }
         
-        // Check file type
         const isAllowedType = allowedTypes.includes(file.type) || 
                              allowedTypes.some(type => file.name.toLowerCase().endsWith(type.split('/')[1])) ||
-                             isPDF(file);
+                             file.name.toLowerCase().endsWith('.docx') ||
+                             file.name.toLowerCase().endsWith('.doc') ||
+                             file.name.toLowerCase().endsWith('.pdf');
                              
         if (!isAllowedType) {
           throw new Error(`File type not supported for ${file.name}`);
         }
         
-        // Show loading state
         setIsLoading(true);
         
-        // Read file content
         const fileContent = await readFileContent(file);
         
-        newFiles.push({
+        const newFile: FileInfo = {
           name: file.name,
           type: file.type,
           content: fileContent,
           size: file.size
-        });
+        };
+        
+        newFiles.push(newFile);
       }
       
-      // Add files to state
+      // Add files to global context
+      addFilesToContext(newFiles);
+      
       setUploadedFiles((prev) => [...prev, ...newFiles]);
       
-      // Add system message about uploaded files
       const fileNames = newFiles.map(file => file.name).join(", ");
       const systemMessage: ChatMessage = { 
         role: "system", 
@@ -139,8 +145,6 @@ const Index = () => {
       
     } catch (error) {
       console.error("Error uploading files:", error);
-      
-      // Add error message
       const errorMessage: ChatMessage = { 
         role: "assistant", 
         content: `Error uploading files: ${error.message}` 
@@ -154,12 +158,28 @@ const Index = () => {
   // Read file content
   const readFileContent = async (file: File): Promise<string> => {
     try {
-      if (isPDF(file)) {
-        return await readPDFContent(file);
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            if (event.target?.result) {
+              resolve(event.target.result as string);
+            } else {
+              reject(new Error("Failed to read PDF file"));
+            }
+          };
+          reader.onerror = () => {
+            reject(new Error(`Failed to read PDF file: ${file.name}`));
+          };
+          reader.readAsText(file);
+        });
+      } else if (file.name.toLowerCase().endsWith('.docx') || file.name.toLowerCase().endsWith('.doc')) {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        return result.value;
       } else {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
-          
           reader.onload = (event) => {
             if (event.target?.result) {
               resolve(event.target.result as string);
@@ -167,11 +187,9 @@ const Index = () => {
               reject(new Error("Failed to read file"));
             }
           };
-          
           reader.onerror = () => {
             reject(new Error(`Failed to read file: ${file.name}`));
           };
-          
           reader.readAsText(file);
         });
       }
@@ -282,6 +300,17 @@ const Index = () => {
     setMessages((prev) => [...prev, systemMessage]);
   };
 
+  // Add a function to clear file context
+  const handleClearFiles = () => {
+    clearFileContext();
+    setUploadedFiles([]);
+    const systemMessage: ChatMessage = { 
+      role: "system", 
+      content: "All uploaded files have been cleared." 
+    };
+    setMessages((prev) => [...prev, systemMessage]);
+  };
+
   // Show loading screen while initializing
   if (!initialized) {
     return (
@@ -326,3 +355,5 @@ const Index = () => {
 };
 
 export default Index;
+
+// sendMessageToGroq function removed as it's now in the service

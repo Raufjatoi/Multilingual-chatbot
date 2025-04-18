@@ -7,6 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Mic, Upload, PlusCircle, Send, Volume2, Search, FileText, Brain } from "lucide-react";
 import { ChatMessage } from "@/types/types";
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface ChatInterfaceProps {
   onSendMessage: (message: string, language: string) => Promise<void>;
@@ -139,7 +142,37 @@ export const ChatInterface = ({
                     }`}
                   >
                     <div className="prose dark:prose-invert">
-                      {message.content}
+                      <ReactMarkdown
+                        components={{
+                          code({node, inline, className, children, ...props}) {
+                            const match = /language-(\w+)/.exec(className || '');
+                            return !inline && match ? (
+                              <SyntaxHighlighter
+                                style={vscDarkPlus}
+                                language={match[1]}
+                                PreTag="div"
+                                {...props}
+                              >
+                                {String(children).replace(/\n$/, '')}
+                              </SyntaxHighlighter>
+                            ) : (
+                              <code className={className} {...props}>
+                                {children}
+                              </code>
+                            )
+                          },
+                          // Add custom styling for other markdown elements
+                          strong: ({node, ...props}) => <span className="font-bold" {...props} />,
+                          em: ({node, ...props}) => <span className="italic" {...props} />,
+                          h1: ({node, ...props}) => <h1 className="text-2xl font-bold" {...props} />,
+                          h2: ({node, ...props}) => <h2 className="text-xl font-bold" {...props} />,
+                          a: ({node, ...props}) => <a className="text-blue-500 hover:underline" {...props} />,
+                          ul: ({node, ...props}) => <ul className="list-disc ml-4" {...props} />,
+                          ol: ({node, ...props}) => <ol className="list-decimal ml-4" {...props} />,
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
                     </div>
                     {message.role === "assistant" && message.content && (
                       <Button

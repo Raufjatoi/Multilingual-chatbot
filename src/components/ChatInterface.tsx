@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mic, Upload, PlusCircle, Send, Volume2, Search, FileText } from "lucide-react";
+import { Mic, Upload, PlusCircle, Send, Volume2, Search, FileText, Brain } from "lucide-react";
 import { ChatMessage } from "@/types/types";
 
 interface ChatInterfaceProps {
@@ -16,6 +16,7 @@ interface ChatInterfaceProps {
   onVoiceInput: () => void;
   onTextToSpeech: (text: string) => void;
   onWebSearch: (query: string) => void;
+  onToggleMemory: (enabled: boolean) => void;
 }
 
 const languages = [
@@ -38,9 +39,11 @@ export const ChatInterface = ({
   onVoiceInput,
   onTextToSpeech,
   onWebSearch,
+  onToggleMemory,
 }: ChatInterfaceProps) => {
   const [inputMessage, setInputMessage] = useState("");
   const [language, setLanguage] = useState("en");
+  const [isMemoryEnabled, setIsMemoryEnabled] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -81,6 +84,12 @@ export const ChatInterface = ({
     if (e.target.files && e.target.files.length > 0) {
       onFileUpload(e.target.files);
     }
+  };
+
+  const handleMemoryToggle = () => {
+    const newState = !isMemoryEnabled;
+    setIsMemoryEnabled(newState);
+    onToggleMemory(newState);
   };
 
   return (
@@ -197,13 +206,13 @@ export const ChatInterface = ({
             />
           </Button>
           <Button 
-            variant="ghost" 
+            variant={isMemoryEnabled ? "destructive" : "ghost"}
             size="icon" 
-            onClick={handleSearch} 
-            title="Search Web"
-            disabled={isLoading || !inputMessage.trim()}
+            onClick={handleMemoryToggle} 
+            title={isMemoryEnabled ? "Memory Enabled" : "Memory Disabled"}
+            disabled={isLoading}
           >
-            <Search className="h-5 w-5" />
+            <Brain className="h-5 w-5" />
           </Button>
           <Button onClick={handleSendMessage} disabled={isLoading}>
             <Send className="h-5 w-5 mr-2" />

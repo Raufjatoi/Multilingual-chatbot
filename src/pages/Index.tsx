@@ -22,7 +22,16 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<FileInfo[]>([]);
   const [initialized, setInitialized] = useState(false);
+  const [isMemoryEnabled, setIsMemoryEnabled] = useState(false);
+  const messageMemory = useRef<ChatMessage[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const handleToggleMemory = (enabled: boolean) => {
+    setIsMemoryEnabled(enabled);
+    if (!enabled) {
+      messageMemory.current = [];
+    }
+  };
 
   // Initialize voice service
   useEffect(() => {
@@ -41,41 +50,45 @@ const Index = () => {
 
   // Handle sending a message
   const handleSendMessage = async (message: string, language: string) => {
+    if (!message.trim()) return;
+
     const userMessage: ChatMessage = { role: "user", content: message };
     setMessages((prev) => [...prev, userMessage]);
-    
     setIsLoading(true);
-    
+
     try {
-      let response: string;
+      let contextMessages: ChatMessage[] = [];
       
+      if (isMemoryEnabled) {
+        // Keep last 5 messages for context
+        messageMemory.current = [...messageMemory.current, userMessage].slice(-5);
+        contextMessages = messageMemory.current;
+      } else {
+        contextMessages = [userMessage];
+      }
+
+      let response: string;
       if (uploadedFiles.length > 0 && 
           (message.toLowerCase().includes("file") || 
            message.toLowerCase().includes("document") ||
            message.toLowerCase().includes("uploaded"))) {
-        
-        // Create messages array for context
-        const contextMessages = [
-          ...messages,
-          userMessage
-        ];
-        
         response = await sendMessageToGroq(contextMessages, uploadedFiles);
       } else {
-        response = await generateChatResponse([userMessage], language);
+        response = await generateChatResponse(contextMessages, language);
       }
-      
+
       const assistantMessage: ChatMessage = { role: "assistant", content: response };
       setMessages((prev) => [...prev, assistantMessage]);
       
+      if (isMemoryEnabled) {
+        messageMemory.current = [...messageMemory.current, assistantMessage].slice(-5);
+      }
     } catch (error) {
       console.error("Error sending message:", error);
-      
-      const errorMessage: ChatMessage = { 
-        role: "assistant", 
-        content: "I'm sorry, I encountered an error. Please try again." 
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: "Sorry, I encountered an error. Please try again."
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -85,45 +98,22 @@ const Index = () => {
   const handleFileUpload = async (files: FileList) => {
     try {
       const newFiles: FileInfo[] = [];
-      const maxFileSize = 10 * 1024 * 1024; // 10MB limit
-      const allowedTypes = [
-        'text/plain',
-        'text/markdown',
-        'text/csv',
-        'application/json',
-        'text/javascript',
-        'text/typescript',
-        'text/html',
-        'text/css',
-        'application/pdf',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/msword'
-      ];
+      const maxFileSize = 20 * 1024 * 1024; // Increased to 20MB limit
+      
+      setIsLoading(true);
       
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         
         if (file.size > maxFileSize) {
-          throw new Error(`File ${file.name} is too large. Maximum size is 10MB.`);
+          throw new Error(`File ${file.name} is too large. Maximum size is 20MB.`);
         }
-        
-        const isAllowedType = allowedTypes.includes(file.type) || 
-                             allowedTypes.some(type => file.name.toLowerCase().endsWith(type.split('/')[1])) ||
-                             file.name.toLowerCase().endsWith('.docx') ||
-                             file.name.toLowerCase().endsWith('.doc') ||
-                             file.name.toLowerCase().endsWith('.pdf');
-                             
-        if (!isAllowedType) {
-          throw new Error(`File type not supported for ${file.name}`);
-        }
-        
-        setIsLoading(true);
         
         const fileContent = await readFileContent(file);
         
         const newFile: FileInfo = {
           name: file.name,
-          type: file.type,
+          type: file.type || `application/${file.name.split('.').pop()}`,
           content: fileContent,
           size: file.size
         };
@@ -131,23 +121,20 @@ const Index = () => {
         newFiles.push(newFile);
       }
       
-      // Add files to global context
+      setUploadedFiles((prev) => [...prev, ...newFiles]);
       addFilesToContext(newFiles);
       
-      setUploadedFiles((prev) => [...prev, ...newFiles]);
-      
-      const fileNames = newFiles.map(file => file.name).join(", ");
-      const systemMessage: ChatMessage = { 
-        role: "system", 
-        content: `Files uploaded successfully: ${fileNames}. You can now ask questions about these files.` 
+      const successMessage: ChatMessage = {
+        role: "assistant",
+        content: `Successfully processed ${newFiles.length} file(s): ${newFiles.map(f => f.name).join(', ')}`
       };
-      setMessages((prev) => [...prev, systemMessage]);
+      setMessages((prev) => [...prev, successMessage]);
       
     } catch (error) {
       console.error("Error uploading files:", error);
-      const errorMessage: ChatMessage = { 
-        role: "assistant", 
-        content: `Error uploading files: ${error.message}` 
+      const errorMessage: ChatMessage = {
+        role: "assistant",
+        content: `Error processing files: ${error.message}`
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
@@ -158,26 +145,71 @@ const Index = () => {
   // Read file content
   const readFileContent = async (file: File): Promise<string> => {
     try {
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            if (event.target?.result) {
-              resolve(event.target.result as string);
-            } else {
-              reject(new Error("Failed to read PDF file"));
-            }
-          };
-          reader.onerror = () => {
-            reject(new Error(`Failed to read PDF file: ${file.name}`));
-          };
-          reader.readAsText(file);
-        });
-      } else if (file.name.toLowerCase().endsWith('.docx') || file.name.toLowerCase().endsWith('.doc')) {
+      // Binary file types that should be base64 encoded
+      const binaryTypes = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/msword',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'application/zip',
+        'application/x-zip-compressed',
+        'application/x-rar-compressed',
+        'application/x-7z-compressed'
+      ];
+
+      // Text file types
+      const textTypes = [
+        'text/plain',
+        'text/markdown',
+        'text/csv',
+        'application/json',
+        'text/javascript',
+        'text/typescript',
+        'application/javascript',
+        'application/typescript',
+        'text/html',
+        'text/css',
+        'text/xml',
+        'application/xml',
+        'text/yaml',
+        'text/x-python',
+        'text/x-java',
+        'text/x-c',
+        'text/x-cpp',
+        'text/x-ruby',
+        'text/x-php',
+        'text/x-go'
+      ];
+
+      // Check file extension
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      const isBinaryByExtension = [
+        'pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt',
+        'jpg', 'jpeg', 'png', 'gif', 'webp',
+        'zip', 'rar', '7z',
+        'exe', 'dll', 'bin'
+      ].includes(extension || '');
+
+      // Determine if file should be treated as binary
+      const isBinary = binaryTypes.includes(file.type) || isBinaryByExtension;
+
+      if (isBinary) {
+        // Handle binary files
         const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        return result.value;
+        const base64 = btoa(
+          new Uint8Array(arrayBuffer)
+            .reduce((data, byte) => data + String.fromCharCode(byte), '')
+        );
+        return `[Binary content - ${file.type || extension}] ${base64}`;
       } else {
+        // Handle text files
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = (event) => {
@@ -344,6 +376,7 @@ const Index = () => {
             onVoiceInput={handleVoiceInput}
             onTextToSpeech={handleTextToSpeech}
             onWebSearch={handleWebSearch}
+            onToggleMemory={handleToggleMemory}
           />
         </div>
       </div>

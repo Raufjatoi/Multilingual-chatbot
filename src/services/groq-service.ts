@@ -1,5 +1,6 @@
 import { API_KEYS } from "@/config/api-config";
 import { ChatMessage, FileInfo, WebSearchResult } from "@/types/types";
+import { Brain } from 'lucide-react';
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
@@ -43,7 +44,8 @@ export const sendMessageToGroq = async (
         messages: [
           {
             role: "system",
-            content: "You are a helpful assistant that can analyze and answer questions about uploaded files. When referencing files, mention their names explicitly."
+            content: `You are a helpful assistant that can analyze and answer questions about uploaded files of various types , can do search too if the user say so , can scrape a website if user provide an url and say so 
+            be a professional chatgpt like chatbot.`
           },
           { 
             role: "user", 
@@ -70,9 +72,17 @@ const formatChatHistory = (messages: ChatMessage[]): string => {
 };
 
 const formatFilesContent = (files: FileInfo[]): string => {
-  return files.map(file => 
-    `File: ${file.name}\nContent: ${file.content}\n---\n`
-  ).join("\n");
+  return files.map(file => {
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    const isBinary = file.content.startsWith('[Binary content');
+    
+    if (isBinary) {
+      return `File: ${file.name} (${file.type})\nType: Binary File\nSize: ${(file.size / 1024).toFixed(2)} KB`;
+    }
+    
+    // For text files, return content with file info
+    return `File: ${file.name} (${file.type})\nSize: ${(file.size / 1024).toFixed(2)} KB\nContent: ${file.content}\n---\n`;
+  }).join("\n");
 };
 
 const formatSearchResults = (results: WebSearchResult[]): string => {
@@ -160,6 +170,3 @@ export const searchWeb = async (query: string, language: string = "en"): Promise
     throw error;
   }
 };
-
-
-
